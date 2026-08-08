@@ -2,21 +2,25 @@ cmake_minimum_required(VERSION 3.12.4)
 
 # vcpkg support - set toolchain file before project()
 if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
-    set(_VCPKG_CMAKE_WORKSPACE "${CMAKE_SOURCE_DIR}/../vcpkg/scripts/buildsystems/vcpkg.cmake")
-    if(EXISTS "${_VCPKG_CMAKE_WORKSPACE}")
-        set(CMAKE_TOOLCHAIN_FILE "${_VCPKG_CMAKE_WORKSPACE}"
+    set(_VCPKG_CMAKE "${CMAKE_SOURCE_DIR}/../vcpkg/scripts/buildsystems/vcpkg.cmake")
+    if(EXISTS "${_VCPKG_CMAKE}")
+        set(CMAKE_TOOLCHAIN_FILE "${_VCPKG_CMAKE}"
             CACHE STRING "Vcpkg toolchain file")
-        message(STATUS "Using vcpkg toolchain (workspace): ${CMAKE_TOOLCHAIN_FILE}")
-    elseif(EXISTS "${CMAKE_SOURCE_DIR}/../vcpkg/scripts/buildsystems/vcpkg.cmake")
-        set(CMAKE_TOOLCHAIN_FILE "${CMAKE_SOURCE_DIR}/../vcpkg/scripts/buildsystems/vcpkg.cmake"
-            CACHE STRING "Vcpkg toolchain file")
-        message(STATUS "Using vcpkg toolchain (legacy): ${CMAKE_TOOLCHAIN_FILE}")
+        message(STATUS "Using sibling vcpkg toolchain: ${CMAKE_TOOLCHAIN_FILE}")
     endif()
 endif()
 
-# Default to static triplet if not specified
+# Auto-select static triplet by platform; Windows is the default
 if(NOT DEFINED VCPKG_TARGET_TRIPLET)
-    set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING "Vcpkg target triplet")
+    if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+        if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+            set(VCPKG_TARGET_TRIPLET "arm64-osx" CACHE STRING "Vcpkg target triplet")
+        else()
+            set(VCPKG_TARGET_TRIPLET "x64-osx" CACHE STRING "Vcpkg target triplet")
+        endif()
+    else()
+        set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING "Vcpkg target triplet")
+    endif()
 endif()
 message(STATUS "Using vcpkg triplet: ${VCPKG_TARGET_TRIPLET}")
 
@@ -32,13 +36,9 @@ set(LVGL_PRO_PROJECT_DIR
 option(USE_FREERTOS "Enable FreeRTOS" OFF) # Turn this on to enable FreeRTOS
 
 # Project Selection: Choose which project to build
-# Options: HAIR_DRYER, SMART_SHAVER, CHEETAH
-set(SELECTED_PROJECT "HAIR_DRYER" CACHE STRING "Select project to build: HAIR_DRYER, SMART_SHAVER, or CHEETAH")
-set_property(CACHE SELECTED_PROJECT PROPERTY STRINGS "HAIR_DRYER" "SMART_SHAVER" "CHEETAH")
-
-# Widget screen size configuration (can be overridden when configuring CMake)
-set(WIDGET_SCREEN_WIDTH "320" CACHE STRING "Widget screen width (pixels)")
-set(WIDGET_SCREEN_HEIGHT "480" CACHE STRING "Widget screen height (pixels)")
+# Options: HAIR_DRYER, SMART_SHAVER, CHEETAH, SLIDE_PLAYER, BATTERY_MONITOR, ACC_DATA
+set(SELECTED_PROJECT "HAIR_DRYER" CACHE STRING "Select project to build")
+set_property(CACHE SELECTED_PROJECT PROPERTY STRINGS "HAIR_DRYER" "SMART_SHAVER" "CHEETAH" "SLIDE_PLAYER" "BATTERY_MONITOR" "ACC_DATA")
 
 if(USE_FREERTOS)
     message(STATUS "FreeRTOS is enabled")
@@ -119,6 +119,9 @@ if(VCPKG_TARGET_TRIPLET MATCHES ".*-static$")
 endif()
 find_package(SDL2 REQUIRED)
 
+# All SDL host builds are simulator targets; hardware builds omit this flag
+add_compile_definitions(LV_SIMULATOR=1)
+
 # Add compile definitions based on the selected options
 add_compile_definitions($<$<BOOL:${LV_USE_DRAW_SDL}>:LV_USE_DRAW_SDL=1>)
 add_compile_definitions($<$<BOOL:${LV_USE_LIBPNG}>:LV_USE_LIBPNG=1>)
@@ -143,54 +146,97 @@ target_include_directories(lvgl PUBLIC ${PROJECT_SOURCE_DIR} ${SDL2_INCLUDE_DIRS
 set(MAIN_SOURCES src/mouse_cursor_icon.c src/hal/hal.c)
 # Only link necessary libraries (removed examples and demos to speed up build)
 set(MAIN_LIBS lvgl ${SDL2_LIBRARIES})
+set(PROJECTS_DIR "${PROJECT_SOURCE_DIR}/projects")
 
 # Add project-specific sources and include directories based on selection
 if(SELECTED_PROJECT STREQUAL "HAIR_DRYER")
     message(STATUS "Building Hair Dryer Project")
     add_compile_definitions(PROJECT_HAIR_DRYER)
     list(APPEND MAIN_SOURCES 
-        hair_dryer/src/hair_dryer.c
-        hair_dryer/src/led_strips_discolor.c
+        ${PROJECTS_DIR}/hair_dryer/src/hair_dryer.c
+        ${PROJECTS_DIR}/hair_dryer/src/led_strips_discolor.c
     )
-    include_directories(${PROJECT_SOURCE_DIR}/hair_dryer/inc)
+    include_directories(${PROJECTS_DIR}/hair_dryer/inc)
     
     # Asset compilation strategy: Release uses static, Debug uses dynamic
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         # Release mode: Use static compiled assets
-        if(EXISTS "${PROJECT_SOURCE_DIR}/hair_dryer/assets/hair_dryer.c")
-            list(APPEND MAIN_SOURCES hair_dryer/assets/hair_dryer.c)
+        if(EXISTS "${PROJECTS_DIR}/hair_dryer/assets/hair_dryer.c")
+            list(APPEND MAIN_SOURCES ${PROJECTS_DIR}/hair_dryer/assets/hair_dryer.c)
             add_compile_definitions(USE_STATIC_ASSETS)
             message(STATUS "Release mode: Using static compiled assets")
         else()
             message(WARNING "Release mode but static asset file not found!")
-            message(WARNING "Please generate hair_dryer/assets/hair_dryer.c from hair_dryer.png")
-            message(WARNING "See hair_dryer/assets/README.md for instructions")
+            message(WARNING "Please generate projects/hair_dryer/assets/hair_dryer.c from hair_dryer.png")
+            message(WARNING "See projects/hair_dryer/assets/README.md for instructions")
             message(STATUS "Falling back to filesystem loading")
         endif()
     else()
         # Debug mode: Use dynamic filesystem loading
         message(STATUS "Debug mode: Using dynamic filesystem loading")
     endif()
-    include_directories(${PROJECT_SOURCE_DIR}/hair_dryer/assets)
+    include_directories(${PROJECTS_DIR}/hair_dryer/assets)
 elseif(SELECTED_PROJECT STREQUAL "SMART_SHAVER")
     message(STATUS "Building Smart Shaver Project")
     add_compile_definitions(PROJECT_SMART_SHAVER)
-    list(APPEND MAIN_SOURCES smart_shaver/src/smart_shaver.c)
-    include_directories(${PROJECT_SOURCE_DIR}/smart_shaver/inc)
+    list(APPEND MAIN_SOURCES ${PROJECTS_DIR}/smart_shaver/src/smart_shaver.c)
+    include_directories(${PROJECTS_DIR}/smart_shaver/inc)
 elseif(SELECTED_PROJECT STREQUAL "CHEETAH")
     message(STATUS "Building Cheetah Project")
     add_compile_definitions(PROJECT_CHEETAH)
-    list(APPEND MAIN_SOURCES cheetah/src/cheetah.c)
-    include_directories(${PROJECT_SOURCE_DIR}/cheetah/inc)
+    list(APPEND MAIN_SOURCES ${PROJECTS_DIR}/cheetah/src/cheetah.c)
+    include_directories(${PROJECTS_DIR}/cheetah/inc)
+    include_directories(${PROJECTS_DIR}/cheetah/assets)
 
-    # If widget size wasn't explicitly overridden, default Cheetah to 96x96
-    if(WIDGET_SCREEN_WIDTH STREQUAL "320" AND WIDGET_SCREEN_HEIGHT STREQUAL "480")
-        set(WIDGET_SCREEN_WIDTH "96" CACHE STRING "Widget screen width (pixels)" FORCE)
-        set(WIDGET_SCREEN_HEIGHT "96" CACHE STRING "Widget screen height (pixels)" FORCE)
-        message(STATUS "Cheetah default widget size: ${WIDGET_SCREEN_WIDTH}x${WIDGET_SCREEN_HEIGHT}")
+    # Cheetah uses statically compiled assets (images) from projects/cheetah/assets/*.c
+    list(APPEND MAIN_SOURCES
+        ${PROJECTS_DIR}/cheetah/assets/0.c
+        ${PROJECTS_DIR}/cheetah/assets/1.c
+        ${PROJECTS_DIR}/cheetah/assets/2.c
+        ${PROJECTS_DIR}/cheetah/assets/3.c
+        ${PROJECTS_DIR}/cheetah/assets/4.c
+        ${PROJECTS_DIR}/cheetah/assets/5.c
+        ${PROJECTS_DIR}/cheetah/assets/6.c
+        ${PROJECTS_DIR}/cheetah/assets/7.c
+        ${PROJECTS_DIR}/cheetah/assets/8.c
+        ${PROJECTS_DIR}/cheetah/assets/9.c
+        ${PROJECTS_DIR}/cheetah/assets/100.c
+        ${PROJECTS_DIR}/cheetah/assets/battery-icon.c
+        ${PROJECTS_DIR}/cheetah/assets/sensitive-icon.c
+        ${PROJECTS_DIR}/cheetah/assets/regular-icon.c
+        ${PROJECTS_DIR}/cheetah/assets/intensitive-icon.c
+        ${PROJECTS_DIR}/cheetah/assets/slient-icon.c
+        ${PROJECTS_DIR}/cheetah/assets/lock-icon.c
+    )
+
+elseif(SELECTED_PROJECT STREQUAL "SLIDE_PLAYER")
+    message(STATUS "Building Slide Player Project")
+    add_compile_definitions(PROJECT_SLIDE_PLAYER)
+    list(APPEND MAIN_SOURCES ${PROJECTS_DIR}/slide_player/src/slide_player.c)
+    include_directories(${PROJECTS_DIR}/slide_player/inc)
+    include_directories(${PROJECTS_DIR}/slide_player/assets)
+
+    # Slide player uses statically compiled assets named 1.c ... x.c.
+    file(GLOB SLIDE_PLAYER_ASSET_SOURCES "${PROJECTS_DIR}/slide_player/assets/[0-9]*.c")
+    if(NOT SLIDE_PLAYER_ASSET_SOURCES)
+        message(FATAL_ERROR "No slide_player assets found under projects/slide_player/assets/*.c")
     endif()
+    list(APPEND MAIN_SOURCES ${SLIDE_PLAYER_ASSET_SOURCES})
+
+elseif(SELECTED_PROJECT STREQUAL "BATTERY_MONITOR")
+    message(STATUS "Building Battery Monitor Project")
+    add_compile_definitions(PROJECT_BATTERY_MONITOR)
+    list(APPEND MAIN_SOURCES ${PROJECTS_DIR}/battery_monitor/src/battery_monitor.c)
+    include_directories(${PROJECTS_DIR}/battery_monitor/inc)
+
+elseif(SELECTED_PROJECT STREQUAL "ACC_DATA")
+    message(STATUS "Building Accelerometer Data Project")
+    add_compile_definitions(PROJECT_ACC_DATA)
+    list(APPEND MAIN_SOURCES ${PROJECTS_DIR}/acc_data/src/acc_data.c)
+    include_directories(${PROJECTS_DIR}/acc_data/inc)
+
 else()
-    message(FATAL_ERROR "Invalid project selection: ${SELECTED_PROJECT}. Must be HAIR_DRYER, SMART_SHAVER, or CHEETAH")
+    message(FATAL_ERROR "Invalid project selection: ${SELECTED_PROJECT}")
 endif()
 
 # Create the main executable, depending on the FreeRTOS option
@@ -268,11 +314,7 @@ if(LVGL_PRO_PROJECT_DIR)
 endif()
 
 add_executable(main ${MAIN_SOURCES})
-target_compile_definitions(main PRIVATE
-    LV_CONF_INCLUDE_SIMPLE
-    WIDGET_SCREEN_WIDTH=${WIDGET_SCREEN_WIDTH}
-    WIDGET_SCREEN_HEIGHT=${WIDGET_SCREEN_HEIGHT}
-)
+target_compile_definitions(main PRIVATE LV_CONF_INCLUDE_SIMPLE)
 target_link_libraries(main ${MAIN_LIBS})
 
 # Disable automatic DLL copying for static builds

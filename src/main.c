@@ -26,14 +26,6 @@
 
 #include "hal/hal.h"
 
-#ifndef WIDGET_SCREEN_WIDTH
-  #define WIDGET_SCREEN_WIDTH 320
-#endif
-
-#ifndef WIDGET_SCREEN_HEIGHT
-  #define WIDGET_SCREEN_HEIGHT 480
-#endif
-
 /* Include project-specific headers based on build configuration */
 #ifdef PROJECT_HAIR_DRYER
   #include "hair_dryer.h"
@@ -41,6 +33,28 @@
   #include "smart_shaver.h"
 #elif defined(PROJECT_CHEETAH)
   #include "cheetah.h"
+#elif defined(PROJECT_SLIDE_PLAYER)
+  #include "slide_player.h"
+#elif defined(PROJECT_BATTERY_MONITOR)
+  #include "battery_monitor.h"
+#elif defined(PROJECT_ACC_DATA)
+  #include "acc_data.h"
+#endif
+
+#if defined(PROJECT_SMART_SHAVER) && defined(SMART_SHAVER_SCREEN_WIDTH) && defined(SMART_SHAVER_SCREEN_HEIGHT)
+  #define WIDGET_SCREEN_WIDTH SMART_SHAVER_SCREEN_WIDTH
+  #define WIDGET_SCREEN_HEIGHT SMART_SHAVER_SCREEN_HEIGHT
+#elif defined(PROJECT_ACC_DATA) && defined(ACC_DATA_SCREEN_WIDTH) && defined(ACC_DATA_SCREEN_HEIGHT)
+  #define WIDGET_SCREEN_WIDTH ACC_DATA_SCREEN_WIDTH
+  #define WIDGET_SCREEN_HEIGHT ACC_DATA_SCREEN_HEIGHT
+#endif
+
+#ifndef WIDGET_SCREEN_WIDTH
+  #define WIDGET_SCREEN_WIDTH 320
+#endif
+
+#ifndef WIDGET_SCREEN_HEIGHT
+  #define WIDGET_SCREEN_HEIGHT 480
 #endif
 
 /*********************
@@ -87,8 +101,17 @@ int main(int argc, char **argv)
   /* Initialize Smart Shaver UI */
   smart_shaver_ui_init();
 #elif defined(PROJECT_CHEETAH)
-  /* Initialize Smart Shaver UI */
+  /* Initialize Cheetah UI */
   cheetah_ui_init();
+#elif defined(PROJECT_SLIDE_PLAYER)
+  /* Initialize Slide Player UI */
+  slide_player_ui_init();
+#elif defined(PROJECT_BATTERY_MONITOR)
+  /* Initialize Battery Monitor UI */
+  battery_monitor_ui_init();
+#elif defined(PROJECT_ACC_DATA)
+  /* Initialize Accelerometer Data UI */
+  acc_data_ui_init();
 #else
   /* Default: Run the demo widgets */
   lv_demo_widgets();

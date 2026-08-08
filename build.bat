@@ -4,7 +4,7 @@ REM Universal Build Script for LVGL Project
 REM ============================================================
 REM This script allows you to build any project in Debug or Release mode
 REM Usage: build.bat [PROJECT] [BUILD_TYPE]
-REM   PROJECT: HAIR_DRYER, SMART_SHAVER, CHEETAH (default: HAIR_DRYER)
+REM   PROJECT: HAIR_DRYER, SMART_SHAVER, CHEETAH, SLIDE_PLAYER, BATTERY_MONITOR, ACC_DATA (default: HAIR_DRYER)
 REM   BUILD_TYPE: Debug, Release (default: Debug)
 REM
 REM Examples:
@@ -13,6 +13,9 @@ REM   build.bat HAIR_DRYER Debug         - Build HAIR_DRYER in Debug mode
 REM   build.bat HAIR_DRYER Release       - Build HAIR_DRYER in Release mode
 REM   build.bat SMART_SHAVER Debug       - Build SMART_SHAVER in Debug mode
 REM   build.bat CHEETAH Debug            - Build CHEETAH in Debug mode
+REM   build.bat SLIDE_PLAYER Debug       - Build SLIDE_PLAYER in Debug mode
+REM   build.bat BATTERY_MONITOR Debug    - Build BATTERY_MONITOR in Debug mode
+REM   build.bat ACC_DATA Debug           - Build ACC_DATA in Debug mode
 REM ============================================================
 
 setlocal enabledelayedexpansion
@@ -43,12 +46,13 @@ set BUILD_TYPE=%2
 REM Set defaults if not provided
 if "%PROJECT%"=="" set PROJECT=HAIR_DRYER
 if "%BUILD_TYPE%"=="" set BUILD_TYPE=Debug
+if "%VCPKG_TARGET_TRIPLET%"=="" set VCPKG_TARGET_TRIPLET=x64-windows-static
 
 REM Validate PROJECT
-if /i not "%PROJECT%"=="HAIR_DRYER" if /i not "%PROJECT%"=="SMART_SHAVER" if /i not "%PROJECT%"=="CHEETAH" (
+if /i not "%PROJECT%"=="HAIR_DRYER" if /i not "%PROJECT%"=="SMART_SHAVER" if /i not "%PROJECT%"=="CHEETAH" if /i not "%PROJECT%"=="SLIDE_PLAYER" if /i not "%PROJECT%"=="BATTERY_MONITOR" if /i not "%PROJECT%"=="ACC_DATA" (
     echo ERROR: Invalid project "%PROJECT%"
     echo.
-    echo Valid projects: HAIR_DRYER, SMART_SHAVER, CHEETAH
+    echo Valid projects: HAIR_DRYER, SMART_SHAVER, CHEETAH, SLIDE_PLAYER, BATTERY_MONITOR, ACC_DATA
     echo.
     pause
     exit /b 1
@@ -68,6 +72,9 @@ REM Normalize case
 if /i "%PROJECT%"=="HAIR_DRYER" set PROJECT=HAIR_DRYER
 if /i "%PROJECT%"=="SMART_SHAVER" set PROJECT=SMART_SHAVER
 if /i "%PROJECT%"=="CHEETAH" set PROJECT=CHEETAH
+if /i "%PROJECT%"=="SLIDE_PLAYER" set PROJECT=SLIDE_PLAYER
+if /i "%PROJECT%"=="BATTERY_MONITOR" set PROJECT=BATTERY_MONITOR
+if /i "%PROJECT%"=="ACC_DATA" set PROJECT=ACC_DATA
 if /i "%BUILD_TYPE%"=="Debug" set BUILD_TYPE=Debug
 if /i "%BUILD_TYPE%"=="Release" set BUILD_TYPE=Release
 
@@ -76,6 +83,9 @@ set PROJECT_LOWER=%PROJECT%
 if /i "%PROJECT%"=="HAIR_DRYER" set PROJECT_LOWER=hair_dryer
 if /i "%PROJECT%"=="SMART_SHAVER" set PROJECT_LOWER=smart_shaver
 if /i "%PROJECT%"=="CHEETAH" set PROJECT_LOWER=cheetah
+if /i "%PROJECT%"=="SLIDE_PLAYER" set PROJECT_LOWER=slide_player
+if /i "%PROJECT%"=="BATTERY_MONITOR" set PROJECT_LOWER=battery_monitor
+if /i "%PROJECT%"=="ACC_DATA" set PROJECT_LOWER=acc_data
 
 echo ============================================================
 echo Building %PROJECT% Project - %BUILD_TYPE% Mode
@@ -84,17 +94,18 @@ echo.
 echo Configuration:
 echo   Project:     %PROJECT%
 echo   Build Type:  %BUILD_TYPE%
+echo   Triplet:     %VCPKG_TARGET_TRIPLET%
 echo   Build Dir:   build\%BUILD_TYPE%\%PROJECT_LOWER%
 echo   Output Dir:  bin\%BUILD_TYPE%\%PROJECT_LOWER%
 echo.
 
 REM Special handling for HAIR_DRYER Release mode - convert images
 if /i "%PROJECT%"=="HAIR_DRYER" if /i "%BUILD_TYPE%"=="Release" (
-    if not exist "hair_dryer\assets\hair_dryer.c" (
+    if not exist "projects\hair_dryer\assets\hair_dryer.c" (
         echo [Pre-build] Converting hair_dryer.png to C array...
         echo.
         
-        python hair_dryer\assets\convert_image.py
+        python projects\hair_dryer\assets\convert_image.py
         
         if errorlevel 1 (
             echo.
@@ -128,7 +139,7 @@ set "VCPKG_TOOLCHAIN=%~dp0..\vcpkg\scripts\buildsystems\vcpkg.cmake"
 cmake -B "%BUILD_DIR%" ^
     -DCMAKE_BUILD_TYPE=%BUILD_TYPE% ^
     -DSELECTED_PROJECT=%PROJECT% ^
-    -DVCPKG_TARGET_TRIPLET=x64-windows-static ^
+    -DVCPKG_TARGET_TRIPLET=%VCPKG_TARGET_TRIPLET% ^
     -DCMAKE_TOOLCHAIN_FILE="%VCPKG_TOOLCHAIN%"
 
 if errorlevel 1 (
